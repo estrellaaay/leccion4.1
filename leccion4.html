@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>单词泡泡消消乐</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            font-family: 'Times New Roman', serif;
+            min-height: 100vh;
+            font-weight: bold;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .game-title {
+            text-align: center;
+            color: #2c3e50;
+            font-size: 2em;
+            margin: 15px 0;
+            letter-spacing: 3px;
+        }
+
+        .columns {
+            display: flex;
+            justify-content: space-between;
+            gap: 10px;
+            min-height: 90vh;
+        }
+
+        .column {
+            flex: 1;
+            position: relative;
+            border-radius: 10px;
+            background: rgba(255,255,255,0.9);
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            padding: 10px;
+        }
+
+        .bubble {
+            position: absolute;
+            padding: 15px 25px;
+            border-radius: 30px;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            font-size: 1.2em;
+            color: #2c3e50;
+            box-shadow: 0 3px 6px rgba(0, 0, 0, 0.1);
+            animation: float 3s ease-in-out infinite;
+            border: 2px solid rgba(255,255,255,0.5);
+        }
+
+        .bubble:hover {
+            transform: scale(1.05);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+        }
+
+        .selected {
+            background: #ff66cc !important;
+            box-shadow: 0 0 15px #fdcb6e;
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-10px); }
+        }
+
+        .celebration {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(255, 255, 255, 0.95);
+            padding: 40px 60px;
+            border-radius: 20px;
+            text-align: center;
+            box-shadow: 0 0 30px rgba(0, 0, 0, 0.2);
+            display: none;
+            z-index: 1000;
+        }
+
+        .firework {
+            position: absolute;
+            width: 15px;
+            height: 15px;
+            background: #ff7675;
+            border-radius: 50%;
+            animation: explode 0.8s ease-out;
+        }
+
+        @keyframes explode {
+            0% { transform: scale(0); opacity: 1; }
+            100% { transform: scale(15); opacity: 0; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1 class="game-title">WORD MATCHING</h1>
+        <div class="columns">
+            <div class="column" id="englishCol"></div>
+            <div class="column" id="chineseCol"></div>
+        </div>
+        <div class="celebration" id="celebration">
+            <h2>🎉 CONGRATULATIONS! 🎉</h2>
+            <p>单词总数: <span id="totalWords">0</span></p>
+            <p>开始时间: <span id="startTime"></span></p>
+            <p>完成用时: <span id="timeUsed">0</span> 秒</p>
+            <p>错误次数: <span id="mistakes">0</span></p>
+        </div>
+	
+        <audio id="fireworkAudio" src="./music.ogg"></audio>
+    </div>
+
+<script>
+const wordPool = [                  
+            {en: "    conocer ", cn:" 认识ren4 shi  "}, {en: "  estudiante  ", cn:" 学生  "},
+            {en: "   idioma chino   ", cn:" 中文  "}, {en: "  chino,china ", cn:" 中国人 "},
+            {en: "  contento    ", cn:" 高兴gao1 xing4    "}, {en: "  estudiar    ", cn:" 学习xue2 xi3  "},
+            {en: "  médico  ", cn:" 医生yi1 sheng "}, {en: "  señor   ", cn:" 先生xian1 sheng   "},
+            {en: "  periodista  ", cn:" 记者ji4 zhe3  "}, {en: "  profesora   ", cn:" 老师lao3 shi1 "},
+            {en: "  preguntar   ", cn:" 问wen4   "}, {en: "  por favor   ", cn:" 请qing3  "},
+            {en: "  entrar  ", cn:" 进来jin4 lai2 "}, {en: "  poder(permiso)  ", cn:" 可以ke3 yi3   "},
+            {en: "  poder(capacidad)    ", cn:" 会hui4   "}, {en: "  amigo   ", cn:" 朋友  "},
+
+
+
+
+
+
+
+];
+
+let selectedBubble = null;
+let startTime = null;
+let mistakeCount = 0;
+const colors = ['#dfe6e9', '#ffeaa7', '#a8e6cf', '#dcedc1', '#ffd3b6'];
+
+function createBubble(text, isEnglish) {
+    const bubble = document.createElement('div');
+    bubble.className = 'bubble';
+    bubble.textContent = text;
+    bubble.style.background = colors[Math.floor(Math.random() * colors.length)];
+    bubble.style.left = Math.random() * 80 + '%';
+    bubble.style.top = Math.random() * 80 + '%';
+    bubble.dataset.value = text;
+    bubble.dataset.type = isEnglish ? 'en' : 'cn';
+    
+    bubble.addEventListener('click', () => handleBubbleClick(bubble));
+    return bubble;
+}
+
+function handleBubbleClick(bubble) {
+    if (!selectedBubble) {
+        selectedBubble = bubble;
+        bubble.classList.add('selected');
+    } else {
+        const isMatch = checkMatch(selectedBubble, bubble);
+        if (isMatch) {
+            removePair(selectedBubble, bubble);
+            checkCompletion();
+        } else {
+            mistakeCount++;
+            selectedBubble.classList.remove('selected');
+        }
+        selectedBubble = null;
+    }
+}
+
+function checkMatch(b1, b2) {
+    const en = b1.dataset.type === 'en' ? b1 : b2;
+    const cn = b1.dataset.type === 'cn' ? b1 : b2;
+    return wordPool.some(word => word.en === en.textContent && word.cn === cn.textContent);
+}
+
+function removePair(b1, b2) {
+    createFirework(b1);
+    createFirework(b2);
+    setTimeout(() => {
+        b1.remove();
+        b2.remove();
+    }, 300);
+	if (document.querySelectorAll('.bubble').length===2) {
+        showCelebration();
+    }
+}
+
+function createFirework(element) {
+    const rect = element.getBoundingClientRect();
+    for(let i=0; i<5; i++) {
+        const fw = document.createElement('div');
+        fw.className = 'firework';
+        fw.style.left = rect.left + 20 + 'px';
+        fw.style.top = rect.top + 20 + 'px';
+        document.body.appendChild(fw);
+        setTimeout(() => fw.remove(), 800);
+    }
+}
+
+function checkCompletion() {
+    if (document.querySelectorAll('.bubble').length===0) {
+        showCelebration();
+    }
+}
+
+function showCelebration() {
+    const celebration = document.getElementById('celebration');
+    document.getElementById('totalWords').textContent = wordPool.length;
+    document.getElementById('startTime').textContent = new Date(startTime).toLocaleString();
+    document.getElementById('timeUsed').textContent = ((Date.now() - startTime)/1000).toFixed(1);
+    document.getElementById('mistakes').textContent = mistakeCount;
+    celebration.style.display = 'block';
+
+    // 播放音效
+    const audio = document.getElementById('fireworkAudio');
+    audio.play();
+
+    // 全屏烟花
+    for(let i=0; i<20; i++) {
+        setTimeout(() => {
+            const fw = document.createElement('div');
+            fw.className = 'firework';
+            fw.style.left = Math.random() * 95 + 'vw';
+            fw.style.top = Math.random() * 95 + 'vh';
+            document.body.appendChild(fw);
+            setTimeout(() => fw.remove(), 800);
+        }, i*50);
+    }
+}
+
+function initGame() {
+    const enCol = document.getElementById('englishCol');
+    const cnCol = document.getElementById('chineseCol');
+    
+    wordPool.forEach(word => {
+        enCol.appendChild(createBubble(word.en, true));
+        cnCol.appendChild(createBubble(word.cn, false));
+    });
+    
+    startTime = Date.now();
+}
+
+window.onload = initGame;
+</script>
+</body>
+</html>
